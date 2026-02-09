@@ -12,7 +12,11 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 import os
-import dj_database_url
+from dotenv import load_dotenv
+from urllib.parse import urlparse, parse_qsl
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -22,14 +26,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-t1jnbks1gk$3v1!xp#r*gw-qdot^-ax&f_phn71904r3w*erdh"
-#SECRET_KEY = os.environ.get("SECRET_KEY")
-#SECRET_KEY = 'os.environ.get("SECRET_KEY")'
+SECRET_KEY = os.environ.get("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = os.environ.get("DEBUG", "False").lower() == "true"
 
-ALLOWED_HOSTS = ['*','banking-app-with-django-production.up.railway.app']
+# Allowed hosts from environment variable
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "*").split(",")
 
 
 # Application definition
@@ -50,9 +53,9 @@ INSTALLED_APPS = [
 ]
 
 # NOWPayments Configuration
-NOWPAYMENTS_API_KEY = 'YOUR-API-KEY'  # Replace with your actual API key
-NOWPAYMENTS_IPN_SECRET_KEY = 'YOUR-IPN-SECRET'  # Replace with your IPN secret key
-NOWPAYMENTS_SANDBOX = True  # Set to False in production
+NOWPAYMENTS_API_KEY = os.environ.get('NOWPAYMENTS_API_KEY', 'YOUR-API-KEY')
+NOWPAYMENTS_IPN_SECRET_KEY = os.environ.get('NOWPAYMENTS_IPN_SECRET_KEY', 'YOUR-IPN-SECRET')
+NOWPAYMENTS_SANDBOX = os.environ.get('NOWPAYMENTS_SANDBOX', 'False').lower() == 'true'
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -91,28 +94,19 @@ WSGI_APPLICATION = "project.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+tmpPostgres = urlparse(os.getenv("DATABASE_URL"))
+
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': tmpPostgres.path.replace('/', ''),
+        'USER': tmpPostgres.username,
+        'PASSWORD': tmpPostgres.password,
+        'HOST': tmpPostgres.hostname,
+        'PORT': 5432,
+        'OPTIONS': dict(parse_qsl(tmpPostgres.query)),
     }
 }
-
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': "railway",
-#         'USER': "postgres",
-#         'PASSWORD': "RWHf0gYmlmM4IH5rWdCX",
-#         'HOST': "containers-us-west-208.railway.app",
-#         'PORT': 6068,
-#     }
-# }
-# db_from_env = dj_database_url.config(conn_max_age=600)
-# DATABASES['default'].update(db_from_env)
-
-
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
@@ -133,10 +127,6 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-
-
-
-
 LOGIN_URL = "userauths:sign-in"
 LOGOUT_REDIRECT_URL = "userauths:sign-in"
 
@@ -145,12 +135,9 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.mailersend.net'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.environ.get('MAILERSEND_USERNAME', 'MS_gYDNa1@test-69oxl5eov82l785k.mlsender.net') # Placeholder/Env
-EMAIL_HOST_PASSWORD = os.environ.get('MAILERSEND_PASSWORD', 'mssp.iav2iMJ.0r83ql38vyv4zw1j.hOSxFS7') # Set this in environment variables!
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'Paylio <MS_gYDNa1@test-69oxl5eov82l785k.mlsender.net>')
-
-
-
+EMAIL_HOST_USER = os.environ.get('MAILERSEND_USERNAME', '')
+EMAIL_HOST_PASSWORD = os.environ.get('MAILERSEND_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'Paylio <noreply@paylio.com>')
 
 
 # Internationalization
@@ -168,15 +155,13 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
-#STATIC_URL = "static/"
-
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
 
-# WhiteNoise static files storage for production
+# WhiteNoise static files storage for production (with cache-busting)
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
@@ -194,16 +179,36 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = 'userauths.User'
 
 JAZZMIN_SETTINGS = {
-   # "site_title": "Library Admin",
-
     "site_header": "Paylio",
-
     "site_brand": "Payment Made Easy......",
-
-    #"site_logo": "books/img/logo.png",
-
-    "copyright": "Paylio - All Right Reserved @ copyright 2023",
-
-
-
+    "copyright": "Paylio - All Right Reserved @ copyright 2026",
 }
+
+
+# =============================================================================
+# PRODUCTION SECURITY SETTINGS
+# =============================================================================
+
+if not DEBUG:
+    # CSRF Trusted Origins (required for Django 4.0+ with HTTPS)
+    CSRF_TRUSTED_ORIGINS = [
+        'https://localhost:8000',
+        # Add any other production domains here
+    ]
+    
+    # HTTPS/SSL Settings
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+    
+    # Session Security
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    
+    # HSTS (HTTP Strict Transport Security)
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    
+    # Content Security
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
